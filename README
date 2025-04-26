@@ -1,0 +1,11 @@
+# I need Go equivalent packages:
+- [Ini](https://gopkg.in/ini.v1)
+- [Datetime](https://pkg.go.dev/time)
+- [OS](https://pkg.go.dev/os)
+    - It has [pwd command](https://gist.github.com/arxdsilva/4f73d6b89c9eac93d4ac887521121120)
+    - I think [this](https://pkg.go.dev/golang.org/x/sys/unix#Getgroups) works for grp
+- [fnmatch](https://www.tutorialspoint.com/golang-program-to-get-the-list-of-filenames-matching-the-specified-wild-card-pattern)
+- [SHA-1](https://pkg.go.dev/crypto/sha1)
+- [Math Ceiling](https://pkg.go.dev/math#Ceil)
+- [Regexp](https://pkg.go.dev/regexp)
+- [Zlib](https://pkg.go.dev/compress/zlib)
