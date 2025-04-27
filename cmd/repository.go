@@ -1,119 +1,97 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"gopkg.in/ini.v1"
 	"log"
 	"os"
+	"path/filepath"
 )
+
+const CreateErr = "error creating directory"
 
 type Repository struct {
 	worktree string
-	gitdir   string
+	gitDir   string
 	config   *ini.File
 }
 
-func (r *Repository) Init(path string, force ...bool) {
+func (r *Repository) Init(path string, force ...bool) error {
 	if force == nil {
 		force = []bool{false}
 	}
 
 	r.worktree = path
-	r.gitdir = path + "/.git"
+	r.gitDir = filepath.Join(path, ".git")
 
-	dirName, err := os.Stat(path)
+	dirName, _ := os.Stat(r.gitDir)
+	if !force[0] || !dirName.IsDir() {
+		return errors.New(fmt.Sprintf("%s isn't a git directory", dirName))
+	}
+
+	file, err := os.Create(filepath.Join(r.gitDir, "config.ini"))
 	if err != nil {
-		log.Panicf("Failed to find path %s", path)
+		return errors.New("error creating config file")
 	}
-	if !(force[0] || dirName.IsDir()) {
-		log.Panicf("%s is not a Git repository", path)
-	}
+	defer file.Close()
 
-	r.config, err = ini.Load("config")
+	r.config, err = ini.Load(filepath.Join(r.gitDir, "config.ini"))
 	if err != nil {
-		log.Panic("Failed to load config file")
-	}
-
-	cf, ok := repoFile(*r, false, "config")
-	_, err = os.Stat(cf)
-	if !ok && os.IsNotExist(err) {
-		log.Panicf("Config file %s does not exist", cf)
+		return errors.New("error reading config file")
 	}
 
 	if !force[0] {
-		version := r.config.Section("core").Key("version").MustInt(0)
-		if version != 0 {
-			log.Panicf("Git version %d is not supported", version)
-		}
-	}
-}
-
-// repoFile creates a file with the provided path
-func repoFile(repo Repository, mkdir bool, path ...string) (string, bool) {
-	if repoDir(repo, mkdir, path[:len(path)-1]...) != "" {
-		return repoPath(repo, path...), true
-	}
-	return "", false
-}
-
-// repoPath converts the strings provided in paths into a single path
-func repoPath(repo Repository, paths ...string) string {
-	path := repo.gitdir
-	for p := range path {
-		path += "/" + paths[p]
-	}
-	return path
-}
-
-// repoDir is the same as repoPath, but it makes a dir
-func repoDir(repo Repository, mkdir bool, paths ...string) string {
-	path := repoPath(repo, paths...)
-
-	dirName, err := os.Stat(path)
-	if os.IsExist(err) {
-		if dirName.IsDir() {
-			return path
-		} else {
-			log.Panicf("%s is not a directory", path)
+		vers := 0 // Need to change this
+		if vers != 0 {
+			return errors.New(fmt.Sprintf("unsupported repositoryformatversion: %d", vers))
 		}
 	}
 
-	if mkdir {
-		err = os.Mkdir(path, 0755)
-		if err != nil {
-			log.Panicf("Failed to create directory %s", path)
-		}
-		return path
-	}
-	return ""
+	return nil
 }
 
-func repoCreate(path string) Repository {
+func CreateRepo(path string) error {
 	repo := Repository{}
-	repo.Init(path, true)
-
-	dirName, err := os.Stat(repo.worktree)
-	if os.IsExist(err) {
-		if !dirName.IsDir() {
-			log.Panicf("%s is not a directory", path)
-		}
-		_, err := os.Stat(repo.gitdir)
-		_, e := os.ReadDir(repo.gitdir)
-		if os.IsExist(err) && e == nil {
-			log.Panicf("%s is not empty", path)
-		}
-	} else {
-		err := os.Mkdir(repo.worktree, 0755)
-		if err != nil {
-			return Repository{}
-		}
+	err := repo.Init(path)
+	if err != nil {
+		log.Fatalln(err)
 	}
 
-	if repoDir(repo, true, "branches") == "" {
-		log.Panicf("An error occurred while creating the repository")
+	err = os.MkdirAll(repo.worktree, os.ModePerm)
+	if err != nil {
+		return err
 	}
-	if repoDir(repo, true, "objects") == "" {
-		log.Panicf("An error occurred while creating the repository")
+	d, err := os.Open(repo.worktree)
+	defer d.Close()
+	filenames, _ := d.Readdirnames(1)
+	if len(filenames) > 0 {
+		return errors.New("directory isn't empty")
 	}
 
-	return repo
+	err = os.MkdirAll(filepath.Join(repo.gitDir, "branches"), os.ModePerm)
+	if err != nil {
+		return errors.New(CreateErr)
+	}
+	err = os.MkdirAll(filepath.Join(repo.gitDir, "objects"), os.ModePerm)
+	if err != nil {
+		return errors.New(CreateErr)
+	}
+	err = os.MkdirAll(filepath.Join(repo.gitDir, "refs", "tags"), os.ModePerm)
+	if err != nil {
+		return errors.New(CreateErr)
+	}
+	err = os.MkdirAll(filepath.Join(repo.gitDir, "refs", "tags"), os.ModePerm)
+	if err != nil {
+		return errors.New(CreateErr)
+	}
+	return nil
+}
+
+func createDir(r Repository, path ...string) error {
+	err := os.MkdirAll(filepath.Join(r.gitDir, path...), os.ModePerm)
+	if err != nil {
+		return errors.New(CreateErr)
+	}
+	return nil
 }
