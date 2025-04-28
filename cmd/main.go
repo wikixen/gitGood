@@ -1,11 +1,15 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"log"
 	"os"
 )
 
 func main() {
+	initCmd := flag.NewFlagSet("init", flag.ExitOnError)
+
 	switch os.Args[1] {
 	case "add":
 		fmt.Println("add")
@@ -20,7 +24,15 @@ func main() {
 	case "hash-object":
 		fmt.Println("hash-object")
 	case "init":
-		fmt.Println("init")
+		initCmd.Usage = func() {
+			fmt.Println("Initialize a new, empty repository.")
+		}
+		if err := initCmd.Parse(os.Args[2:]); err != nil {
+			err := createRepo(os.Args[2])
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 	case "log":
 		fmt.Println("log")
 	case "ls-files":
