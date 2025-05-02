@@ -2,11 +2,14 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"gopkg.in/ini.v1"
 	"log"
 	"os"
 	"path/filepath"
 )
+
+// Might revisit this later & combine Init and createRepo
 
 type Repository struct {
 	worktree string
@@ -16,24 +19,32 @@ type Repository struct {
 
 // Init instantiates a Repository
 func (r *Repository) Init(path string, force bool) error {
+	path, err := filepath.Localize(path)
+	if err != nil {
+		return errors.New("error localizing path")
+	}
 	r.worktree = path
-	r.gitDir = filepath.Join(path, ".git")
+	r.gitDir = filepath.Join(".", path, ".git")
 
 	dirName, _ := os.Stat(r.gitDir)
-	if !force || !dirName.IsDir() {
+	if !(force || dirName.IsDir()) {
 		return errors.New("git dir is not a directory")
 	}
 
-	r.config = ini.Empty()
-	_, err := os.Create("config.ini")
+	err = os.MkdirAll(r.gitDir, 0755)
 	if err != nil {
-		return err
+		return errors.New("error creating .git directory")
+	}
+	configPath := filepath.Join(".", r.gitDir, "config.ini")
+	_, err = os.Create(configPath)
+	if err != nil {
+		return errors.New("error creating config.ini")
 	}
 
-	if _, err = os.Stat("config.ini"); err == nil {
-		r.config, err = ini.Load("config")
+	if _, err = os.Stat(configPath); err == nil {
+		r.config, err = ini.Load(configPath)
 		if err != nil {
-			return err
+			return errors.New("error loading config.ini")
 		}
 	} else {
 		return errors.New("config.ini does not exist")
@@ -42,7 +53,7 @@ func (r *Repository) Init(path string, force bool) error {
 	if !force {
 		version, err := r.config.Section("core").Key("repositoryformatversion").Int()
 		if err != nil {
-			return err
+			return errors.New("error reading repositoryformatversion")
 		}
 		if version > 0 {
 			return errors.New("unsupported git version")
@@ -53,8 +64,9 @@ func (r *Repository) Init(path string, force bool) error {
 
 // createRepo creates a Repository in the directory
 func createRepo(path string) error {
+	fmt.Println("Initializing git repository...")
 	repo := new(Repository)
-	err := repo.Init(path, false)
+	err := repo.Init(path, true)
 	if err != nil {
 		return err
 	}
@@ -89,14 +101,12 @@ func createRepo(path string) error {
 		return err
 	}
 
-	_, err = os.Create(filepath.Join(repo.gitDir, "config"))
+	err = fillConfig(repo.gitDir)
 	if err != nil {
 		return err
 	}
-	err = fillConfig()
-	if err != nil {
-		return err
-	}
+
+	fmt.Println("Initialized empty Git repository in " + repo.worktree)
 
 	return nil
 }
@@ -109,27 +119,36 @@ func makeDir(path string) {
 }
 
 // fillConfig fills the .git/config with initial values
-func fillConfig() error {
-	conf, err := ini.Load("config")
+func fillConfig(path string) error {
+	path = filepath.Join(".", path, "config.ini")
+	conf, err := ini.Load(path)
 	if err != nil {
-		return err
+		return errors.New("error loading config.ini")
 	}
+
 	core, err := conf.NewSection("core")
 	if err != nil {
-		return err
+		return errors.New("error creating core section")
 	}
 
 	_, err = core.NewKey("repositoryformatversion", "0")
 	if err != nil {
-		return err
+		return errors.New("error creating repositoryformatversion key")
 	}
+
 	_, err = core.NewKey("filemode", "false")
 	if err != nil {
-		return err
+		return errors.New("error creating filemode key")
 	}
+
 	_, err = core.NewKey("bare", "false")
 	if err != nil {
-		return err
+		return errors.New("error creating bare key")
+	}
+
+	err = conf.SaveTo(filepath.Join(path))
+	if err != nil {
+		return errors.New("error saving config.ini")
 	}
 
 	return nil

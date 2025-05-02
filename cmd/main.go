@@ -9,6 +9,10 @@ import (
 
 func main() {
 	initCmd := flag.NewFlagSet("init", flag.ExitOnError)
+	if len(os.Args) < 2 {
+		fmt.Println("usage: git-good <command> [<args>]")
+		os.Exit(1)
+	}
 
 	switch os.Args[1] {
 	case "add":
@@ -24,15 +28,7 @@ func main() {
 	case "hash-object":
 		fmt.Println("hash-object")
 	case "init":
-		initCmd.Usage = func() {
-			fmt.Println("Initialize a new, empty repository.")
-		}
-		if err := initCmd.Parse(os.Args[2:]); err != nil {
-			err := createRepo(os.Args[2])
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
+		initFn(initCmd)
 	case "log":
 		fmt.Println("log")
 	case "ls-files":
@@ -51,5 +47,25 @@ func main() {
 		fmt.Println("tag")
 	default:
 		fmt.Println("unknown command")
+	}
+}
+
+func initFn(initCmd *flag.FlagSet) {
+	initCmd.Usage = func() {
+		fmt.Println("Initialize a new, empty repository.")
+	}
+	if len(os.Args) < 3 {
+		err := createRepo(".")
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		if err := initCmd.Parse(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		err := createRepo(os.Args[2])
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
