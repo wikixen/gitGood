@@ -153,3 +153,34 @@ func fillConfig(path string) error {
 
 	return nil
 }
+
+func findRepo(path string, required bool) (string, *Repository) {
+	repo := new(Repository)
+
+	path, err := filepath.Localize(path)
+	if err != nil {
+		log.Fatal("Error localizing path")
+	}
+
+	dirName, err := os.Stat(filepath.Join(".", path, ".git"))
+	if err != nil {
+		log.Fatal("Path isn't a directory")
+	}
+	if dirName.IsDir() {
+		err := repo.Init(path, false)
+		if err != nil {
+			log.Fatal("Error initializing repository")
+		}
+		return "", repo
+	}
+
+	parent := filepath.Dir(filepath.Join(path, ".."))
+	if parent == path {
+		if required {
+			log.Fatal("No git directory")
+		}
+		return "", nil
+	}
+
+	return findRepo(parent, required)
+}
